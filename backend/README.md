@@ -61,6 +61,7 @@ Deployment files are included:
 
 - `Procfile` for hosts that run Procfile web processes.
 - `render.yaml` for Render Blueprint deployments from the repository root.
+- `backend/vercel.json` and `backend/api/index.py` for Vercel FastAPI deployments with `backend` as the project root.
 
 ## Main API Groups
 

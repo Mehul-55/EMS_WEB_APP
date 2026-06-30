@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -9,6 +11,8 @@ from app.routers.auth import bootstrap_admin
 
 settings = get_settings()
 app = FastAPI(title="EMS Web Backend API", version="0.1.0")
+logger = logging.getLogger(__name__)
+startup_database_error: str | None = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,8 +25,14 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup() -> None:
-    init_indexes()
-    bootstrap_admin()
+    global startup_database_error
+    try:
+        init_indexes()
+        bootstrap_admin()
+        startup_database_error = None
+    except Exception as exc:
+        startup_database_error = f"{type(exc).__name__}: {exc}"
+        logger.exception("Backend database startup failed")
 
 
 @app.get("/", tags=["health"])
@@ -32,7 +42,18 @@ def root():
 
 @app.get("/health", tags=["health"])
 def health():
-    ping_database()
+    if startup_database_error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database startup failed: {startup_database_error}",
+        )
+    try:
+        ping_database()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database ping failed: {type(exc).__name__}: {exc}",
+        ) from exc
     return {"status": "ok"}
 
 

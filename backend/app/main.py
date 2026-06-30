@@ -25,6 +25,11 @@ def startup() -> None:
     bootstrap_admin()
 
 
+@app.get("/", tags=["health"])
+def root():
+    return {"status": "ok", "service": "EMS Web Backend API"}
+
+
 @app.get("/health", tags=["health"])
 def health():
     ping_database()

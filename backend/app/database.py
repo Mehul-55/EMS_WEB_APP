@@ -1,24 +1,55 @@
+import certifi
 from pymongo import ASCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from app.config import get_settings
 
 
-settings = get_settings()
-client = MongoClient(settings.mongo_uri, serverSelectionTimeoutMS=3000)
-db = client[settings.mongo_db_name]
+_client: MongoClient | None = None
 
-employees_col = db["employees"]
-attendance_col = db["attendance"]
-shift_assignments_col = db["shift_assignments"]
-sunday_work_approvals_col = db["sunday_work_approvals"]
-leave_requests_col = db["leave_requests"]
-leaves_col = db["leaves"]
-salary_col = db["salary"]
-salary_history_col = db["salary_history"]
-shifts_col = db["shifts"]
-holidays_col = db["holidays"]
-audit_logs_col = db["audit_logs"]
+
+def get_client() -> MongoClient:
+    global _client
+    if _client is None:
+        settings = get_settings()
+        _client = MongoClient(
+            settings.mongo_uri,
+            serverSelectionTimeoutMS=3000,
+            tlsCAFile=certifi.where(),
+        )
+    return _client
+
+
+def get_db():
+    settings = get_settings()
+    return get_client()[settings.mongo_db_name]
+
+
+class LazyCollection:
+    def __init__(self, name: str):
+        self.name = name
+
+    def _collection(self):
+        return get_db()[self.name]
+
+    def __getattr__(self, item):
+        return getattr(self._collection(), item)
+
+    def __getitem__(self, item):
+        return self._collection()[item]
+
+
+employees_col = LazyCollection("employees")
+attendance_col = LazyCollection("attendance")
+shift_assignments_col = LazyCollection("shift_assignments")
+sunday_work_approvals_col = LazyCollection("sunday_work_approvals")
+leave_requests_col = LazyCollection("leave_requests")
+leaves_col = LazyCollection("leaves")
+salary_col = LazyCollection("salary")
+salary_history_col = LazyCollection("salary_history")
+shifts_col = LazyCollection("shifts")
+holidays_col = LazyCollection("holidays")
+audit_logs_col = LazyCollection("audit_logs")
 
 
 def init_indexes() -> None:
@@ -48,5 +79,5 @@ def _create_index(collection, keys, **kwargs) -> None:
 
 
 def ping_database() -> bool:
-    client.admin.command("ping")
+    get_client().admin.command("ping")
     return True
